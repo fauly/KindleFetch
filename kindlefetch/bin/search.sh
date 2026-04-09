@@ -85,7 +85,7 @@ search_books() {
     local encoded_query=$(echo "$query" | sed 's/ /+/g')
     local search_url="$ANNAS_URL/search?page=${page}&q=${encoded_query}${filters}"
     local html_content
-    html_content="$(curl -s "$search_url")"
+    html_content="$(curl -s -A "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" "$search_url")"
     
     local last_page="$(echo "$html_content" | grep -o 'page=[0-9]\+"' | sort -t= -k2 -nr | head -1 | cut -d= -f2 | tr -d '"')"
     [ -z "$last_page" ] && last_page=1
@@ -102,83 +102,100 @@ search_books() {
     echo "$has_next" > "$TMP_DIR"/last_search_has_next
     echo "$has_prev" > "$TMP_DIR"/last_search_has_prev
     
-    local books="$(echo "$html_content" | awk '
+    local books="$(echo "$html_content" | awk -v base_url="$ANNAS_URL" '
         BEGIN {
-            RS = "<div class=\"flex pt-3 pb-3 border-b last:border-b-0 border-gray-100\">"
+            RS = "href=\"/md5/"
             print "["
             count = 0
         }
         NR > 1 {
-            title = ""; author = ""; md5 = ""; format = ""; description = ""
-        
-            # md5
-            if (match($0, /href="\/md5\/[a-f0-9]{32}"/)) {
-                md5 = substr($0, RSTART+11, 32)
+            title = ""; author = ""; md5 = ""; format = ""; description = ""; tags = ""
+
+            # md5 is at the very start of each record (before the closing quote)
+            if (match($0, /^[a-f0-9]{32}/)) {
+                md5 = substr($0, RSTART, RLENGTH)
             }
-        
-            # title
-            if (match($0, /<div class="font-bold text-violet-900 line-clamp-\[5\]" data-content="[^"]+"/)) {
-                block = substr($0, RSTART, RLENGTH)
-                if (match(block, /data-content="[^"]+"/)) {
-                    title = substr(block, RSTART+14, RLENGTH-15)
+            if (md5 == "") next
+
+            # Title: text immediately after the anchor-opener md5"[^>]*>
+            # Title links have the book name here; thumbnail links only have whitespace then <img>
+            s = $0
+            if (match(s, /^[a-f0-9]{32}"[^>]*>/)) {
+                s = substr(s, RSTART + RLENGTH)
+                if (match(s, /[^<]+/)) {
+                    title = substr(s, RSTART, RLENGTH)
+                    gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", title)
                 }
             }
-        
-            # author
-            if ($0 ~ /<div[^>]*class="[^"]*font-bold[^"]*text-amber-900[^"]*line-clamp-\[2\][^"]*"/) {
-                if (match($0, /<div[^>]*class="[^"]*font-bold[^"]*text-amber-900[^"]*line-clamp-\[2\][^"]*" data-content="[^"]+"/)) {
-                    block = substr($0, RSTART, RLENGTH)
-                    if (match(block, /data-content="[^"]+"/)) {
-                        author = substr(block, RSTART+14, RLENGTH-15)
+            if (title == "") next
+
+            # author: text that follows the icon-[mdi--user-edit] span
+            s = $0
+            if (match(s, /icon-\[mdi--user-edit\]/)) {
+                s = substr(s, RSTART + RLENGTH)
+                # skip to end of the span tag (self-closing /> or separate </span>)
+                if (match(s, /\/>|<\/span>/)) {
+                    s = substr(s, RSTART + RLENGTH)
+                    if (match(s, /[^<]+/)) {
+                        author = substr(s, RSTART, RLENGTH)
+                        gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", author)
                     }
                 }
             }
-        
-            # format
-            if (match($0, /<div class="text-gray-800[^>]*>[^<]+/)) {
-                line = substr($0, RSTART, RLENGTH)
-                if (match(line, />[^<]+/)) {
-                    content = substr(line, RSTART+1, RLENGTH-1)
-                    n = split(content, parts, " · ")
-                    if (n >= 2) {
-                        format = parts[2]
+
+            # tags/sources: full text of the font-semibold div (contains format, sources like lgli/zlib, language, etc.)
+            s = $0
+            if (match(s, /font-semibold[^>]*>/)) {
+                s = substr(s, RSTART + RLENGTH)
+                # collect everything up to the closing </div>
+                if (match(s, /<\/div>/)) {
+                    div_content = substr(s, 1, RSTART - 1)
+                    # strip inner HTML tags
+                    gsub(/<[^>]*>/, " ", div_content)
+                    # remove "Save" button text and beyond
+                    if (match(div_content, /Save/)) {
+                        div_content = substr(div_content, 1, RSTART - 1)
+                    }
+                    gsub(/[ \t\r\n]+/, " ", div_content)
+                    gsub(/^[ ]+|[ ]+$/, "", div_content)
+                    tags = div_content
+                    # first · separated field is the file format
+                    n = split(tags, parts, " · ")
+                    if (n >= 1) {
+                        format = parts[1]
+                        gsub(/^[ ]+|[ ]+$/, "", format)
                     }
                 }
             }
-            
-            # description
-            if (match($0, /<div[^>]*class="[^"]*text-gray-800[^"]*font-semibold[^"]*text-sm[^"]*leading-\[1\.2\][^"]*mt-2[^"]*"[^>]*>.*?<\/div>/)) {
-                line = substr($0, RSTART, RLENGTH)
 
-                gsub(/<script[^>]*>[^<]*(<[^>]*>[^<]*)*<\/script>/, "", line)
-
-                gsub(/<a[^>]*>[^<]*(<[^>]*>[^<]*)*<\/a>/, "", line)
-
-                gsub(/<[^>]*>/, "", line)
-
-                gsub(/&[#a-zA-Z0-9]+;/, "", line)
-
-                gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", line)
-
-                description = line
+            # description: div[@class="relative"] > div[class contains "line-clamp"]
+            s = $0
+            if (match(s, /class="relative"/)) {
+                s = substr(s, RSTART + RLENGTH)
+                if (match(s, /line-clamp[^>]*>/)) {
+                    s = substr(s, RSTART + RLENGTH)
+                    if (match(s, /<\/div>/)) {
+                        desc_content = substr(s, 1, RSTART - 1)
+                        gsub(/<[^>]*>/, " ", desc_content)
+                        gsub(/&[#a-zA-Z0-9]+;/, "", desc_content)
+                        gsub(/[ \t\r\n]+/, " ", desc_content)
+                        gsub(/^[ ]+|[ ]+$/, "", desc_content)
+                        description = desc_content
+                    }
+                }
             }
-        
-            # emoji replacements
-            gsub(/🚀/, "Partner Server", description)
-            gsub(/📗|📘|📕|📰|💬|📝|🤨|🎶|✅/, "", description)
-        
-            # escape double quotes
+            # fall back to tags when no description text found
+            if (description == "") description = tags
+
+            # escape double quotes for JSON
             gsub(/"/, "\\\"", title)
             gsub(/"/, "\\\"", author)
             gsub(/"/, "\\\"", description)
-        
-            if (title != "") {
-                if (count > 0) {
-                    printf ",\n"
-                }
-                printf "  {\"author\": \"%s\", \"format\": \"%s\", \"md5\": \"%s\", \"title\": \"%s\", \"url\": \"%s/md5/%s\", \"description\": \"%s\"}", author, format, md5, title, base_url, md5, description
-                count++
-            }
+            gsub(/"/, "\\\"", tags)
+
+            if (count > 0) printf ",\n"
+            printf "  {\"author\": \"%s\", \"format\": \"%s\", \"md5\": \"%s\", \"title\": \"%s\", \"url\": \"%s/md5/%s\", \"description\": \"%s\", \"tags\": \"%s\"}", author, format, md5, title, base_url, md5, description, tags
+            count++
         }
         END {
             print "\n]"
