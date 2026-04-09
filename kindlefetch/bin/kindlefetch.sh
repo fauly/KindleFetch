@@ -5,7 +5,7 @@
 # https://github.com/justrals/KindleFetch
 
 # Variables
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 CONFIG_FILE="$SCRIPT_DIR/kindlefetch_config"
 LINK_CONFIG_FILE="$SCRIPT_DIR/link_config"
 VERSION_FILE="$SCRIPT_DIR/.version"
