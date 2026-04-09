@@ -4,7 +4,7 @@ change_dns () {
     RESOLV_FILE="/var/run/resolv.conf"
     
     if [ ! -f "$RESOLV_FILE" ]; then
-        exit 1
+        return 1
     fi
 
     sed -i '/^nameserver/d' "$RESOLV_FILE"
@@ -55,6 +55,8 @@ cleanup() {
           "$TMP_DIR"/kindle_folders.list \
           "$TMP_DIR"/search_results.json \
           "$TMP_DIR"/last_search_*
+    rm -f "$SCRIPT_DIR/tmp/current_filters" \
+          "$SCRIPT_DIR/tmp/current_filter_params"
 }
 
 get_version() {
