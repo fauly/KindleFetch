@@ -58,18 +58,16 @@ lgli_download() {
     fi
 
     printf '\nFetching download page...\n'
-    if ! local lgli_content="$(curl -s -L "$LGLI_URL/ads.php?md5=$md5")"; then
+    local lgli_content
+    lgli_content="$(curl -s -L "$LGLI_URL/ads.php?md5=$md5")" || {
         echo "Failed to fetch book page" >&2
         return 1
-    fi
-    
-    if ! local download_link="$(echo "$lgli_content" | grep -o -m 1 'href="[^"]*get\.php[^"]*"' | cut -d'"' -f2)"; then
-        echo "Failed to parse download link" >&2
-        return 1
-    fi
-    
+    }
+
+    local download_link
+    download_link="$(echo "$lgli_content" | grep -o -m 1 'href="[^"]*get\.php[^"]*"' | cut -d'"' -f2)"
     if [ -z "$download_link" ]; then
-        echo "No download link found" >&2
+        echo "Failed to parse download link" >&2
         return 1
     fi
 

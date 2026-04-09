@@ -22,7 +22,6 @@ display_books() {
     local count
     count="$(echo "$books" | grep -o '"title":' | wc -l)"
 
-    local display_index=1
     local start=$(( (page - 1) * RESULTS_PER_PAGE ))
     local end=$(( start + RESULTS_PER_PAGE - 1 ))
     [ "$end" -ge "$count" ] && end=$((count - 1))
@@ -46,7 +45,6 @@ display_books() {
             echo ""
         fi
 
-        display_index=$((display_index + 1))
         i=$((i - 1))
     done
 
@@ -86,7 +84,8 @@ search_books() {
     
     local encoded_query=$(echo "$query" | sed 's/ /+/g')
     local search_url="$ANNAS_URL/search?page=${page}&q=${encoded_query}${filters}"
-    local html_content="$(curl -s "$search_url") || html_content=$(curl -s -x "$PROXY_URL" "$search_url")"
+    local html_content
+    html_content="$(curl -s "$search_url")"
     
     local last_page="$(echo "$html_content" | grep -o 'page=[0-9]\+"' | sort -t= -k2 -nr | head -1 | cut -d= -f2 | tr -d '"')"
     [ -z "$last_page" ] && last_page=1
@@ -103,7 +102,7 @@ search_books() {
     echo "$has_next" > "$TMP_DIR"/last_search_has_next
     echo "$has_prev" > "$TMP_DIR"/last_search_has_prev
     
-    local books="$(echo $html_content | awk '
+    local books="$(echo "$html_content" | awk '
         BEGIN {
             RS = "<div class=\"flex pt-3 pb-3 border-b last:border-b-0 border-gray-100\">"
             print "["
@@ -265,7 +264,7 @@ search_books() {
                     [ "$end" -ge "$count" ] && end=$((count - 1))
                     local items_on_page=$(( end - start + 1 ))
 
-                    if [ "$choice" -ge 1 ] && [ "$choice" -le "$count" ]; then
+                    if [ "$choice" -ge "$((start+1))" ] && [ "$choice" -le "$((end+1))" ]; then
                         absolute_index=$(( choice - 1 ))
 
                         book_info="$(awk -v i=$absolute_index \
@@ -384,7 +383,7 @@ search_books() {
                         printf "\nPress any key to continue..."
                         read -n 1 -s
                     else
-                        echo "Invalid selection (must be between 1 and $items_on_page)"
+                        echo "Invalid selection (must be between $((start+1)) and $((end+1)))"
                         sleep 2
                     fi
                 else
