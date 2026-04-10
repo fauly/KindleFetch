@@ -6,6 +6,12 @@
 
 # Variables
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# If a local `curl` binary is present, try to make it executable so the
+# bundled binary can be used when the script starts (best-effort).
+if [ -f "$SCRIPT_DIR/curl" ] && [ ! -x "$SCRIPT_DIR/curl" ]; then
+    chmod +x "$SCRIPT_DIR/curl" 2>/dev/null || \
+        printf "Warning: unable to set execute bit on %s/curl\n" "$SCRIPT_DIR" >&2
+fi
 CURL_BIN=${CURL_BIN:-curl}
 if [ -x "$SCRIPT_DIR/curl" ]; then
     CURL_BIN="$SCRIPT_DIR/curl"
