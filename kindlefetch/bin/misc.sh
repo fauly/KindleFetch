@@ -39,6 +39,24 @@ KINDLE_DOCUMENTS="${KINDLE_DOCUMENTS:-/mnt/us/documents}"
 DOWNLOAD_RETRIES="${DOWNLOAD_RETRIES:-3}"
 DOWNLOAD_TIMEOUT="${DOWNLOAD_TIMEOUT:-180}"
 
+# Determine curl binary to use. Prefer a local copy at SCRIPT_DIR/curl if present.
+if [ -z "$CURL_BIN" ]; then
+    if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/curl" ]; then
+        # Try to set executable bit on the included curl binary (may fail on some mounts)
+        if [ ! -x "$SCRIPT_DIR/curl" ]; then
+            chmod +x "$SCRIPT_DIR/curl" 2>/dev/null || printf "WARN: unable to chmod %s\n" "$SCRIPT_DIR/curl" >&2
+        fi
+        if [ -x "$SCRIPT_DIR/curl" ]; then
+            CURL_BIN="$SCRIPT_DIR/curl"
+        else
+            CURL_BIN="$(command -v curl 2>/dev/null || echo curl)"
+        fi
+    else
+        CURL_BIN="$(command -v curl 2>/dev/null || echo curl)"
+    fi
+fi
+export CURL_BIN
+
 ensure_log_dir() {
     local log_dir
     log_dir="$(dirname "$LOG_FILE")"
@@ -191,6 +209,7 @@ save_config() {
         echo "CREATE_SUBFOLDERS=\"$CREATE_SUBFOLDERS\""
         echo "DEBUG_MODE=\"$DEBUG_MODE\""
         echo "AUTO_CONFIRM=\"$AUTO_CONFIRM\""
+        echo "CURL_BIN=\"$CURL_BIN\""
         echo "DOWNLOAD_RETRIES=\"$DOWNLOAD_RETRIES\""
         echo "DOWNLOAD_TIMEOUT=\"$DOWNLOAD_TIMEOUT\""
         echo "LOG_FILE=\"$LOG_FILE\""

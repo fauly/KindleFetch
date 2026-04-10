@@ -20,4 +20,10 @@
 : ${TMP_DIR:=/tmp}
 : ${LOG_FILE:=${TMP_DIR}/kindlefetch/kindlefetch.log}
 
-export AUTO_CONFIRM DEBUG_MODE KINDLE_DOCUMENTS DOWNLOAD_RETRIES DOWNLOAD_TIMEOUT TMP_DIR LOG_FILE
+# If you include a static curl binary named `curl` in the `kindlefetch/` folder,
+# the scripts will prefer it. Put your custom curl at `kindlefetch/curl` and
+# ensure it's executable (`chmod +x kindlefetch/curl`) after copying to device.
+# You may override the path by setting `CURL_BIN` here or via environment.
+: ${CURL_BIN:="$SCRIPT_DIR/curl"}
+
+export AUTO_CONFIRM DEBUG_MODE KINDLE_DOCUMENTS DOWNLOAD_RETRIES DOWNLOAD_TIMEOUT TMP_DIR LOG_FILE CURL_BIN

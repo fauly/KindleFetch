@@ -18,6 +18,11 @@ cp -r kindlefetch "$BUILD_DIR/" || {
 # Remove runtime tmp artifacts if present
 rm -rf "$BUILD_DIR/kindlefetch/tmp" "$BUILD_DIR/kindlefetch/bin/tmp" 2>/dev/null || true
 
+# Ensure included curl is executable in the build (best-effort)
+if [ -f "$BUILD_DIR/kindlefetch/curl" ]; then
+   chmod +x "$BUILD_DIR/kindlefetch/curl" 2>/dev/null || echo "Warning: failed to chmod $BUILD_DIR/kindlefetch/curl"
+fi
+
 cat > "$BUILD_DIR/INSTALL_ON_KINDLE.txt" <<'EOF'
 Deployment notes — KindleFetch (Kindle)
 
