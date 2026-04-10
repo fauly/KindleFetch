@@ -13,12 +13,31 @@ change_dns () {
     echo "nameserver 1.0.0.1" >> "$RESOLV_FILE"
 }
 
+# If SCRIPT_DIR not set, determine it. Then source optional repo config.
+if [ -z "$SCRIPT_DIR" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$0")" >/dev/null 2>&1 && pwd)"
+fi
+
+if [ -f "$SCRIPT_DIR/../kindle_config.sh" ]; then
+    . "$SCRIPT_DIR/../kindle_config.sh"
+elif [ -f "$SCRIPT_DIR/kindle_config.sh" ]; then
+    . "$SCRIPT_DIR/kindle_config.sh"
+elif [ -f "./kindle_config.sh" ]; then
+    . "./kindle_config.sh"
+fi
+
 # Centralized logging helper
 # Writes timestamped entries to LOG_FILE. Defaults to $TMP_DIR/kindlefetch.log
-LOG_FILE="${LOG_FILE:-$TMP_DIR/kindlefetch.log}"
+LOG_FILE="${LOG_FILE:-${TMP_DIR:-/tmp}/kindlefetch.log}"
+# Defaults (can be overridden in kindle_config.sh or environment)
 DEBUG_MODE="${DEBUG_MODE:-false}"
 # When set to "true", skip interactive prompts and assume defaults (useful for automated testing)
-AUTO_CONFIRM="${AUTO_CONFIRM:-false}"
+AUTO_CONFIRM="${AUTO_CONFIRM:-true}"
+# Default Kindle documents path
+KINDLE_DOCUMENTS="${KINDLE_DOCUMENTS:-/mnt/us/documents}"
+# Download retry settings
+DOWNLOAD_RETRIES="${DOWNLOAD_RETRIES:-3}"
+DOWNLOAD_TIMEOUT="${DOWNLOAD_TIMEOUT:-180}"
 
 ensure_log_dir() {
     local log_dir
@@ -171,6 +190,10 @@ save_config() {
         echo "KINDLE_DOCUMENTS=\"$KINDLE_DOCUMENTS\""
         echo "CREATE_SUBFOLDERS=\"$CREATE_SUBFOLDERS\""
         echo "DEBUG_MODE=\"$DEBUG_MODE\""
+        echo "AUTO_CONFIRM=\"$AUTO_CONFIRM\""
+        echo "DOWNLOAD_RETRIES=\"$DOWNLOAD_RETRIES\""
+        echo "DOWNLOAD_TIMEOUT=\"$DOWNLOAD_TIMEOUT\""
+        echo "LOG_FILE=\"$LOG_FILE\""
         echo "COMPACT_OUTPUT=\"$COMPACT_OUTPUT\""
         echo "ENFORCE_DNS=\"$ENFORCE_DNS\""
         echo "ZLIB_AUTH=\"$ZLIB_AUTH\""
